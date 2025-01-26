@@ -4,6 +4,7 @@ import random
 import numpy as np
 import torch
 import torch.autograd.profiler as profiler
+import json
 from tasks.data_loaders.data_utils import get_train_data_loader, get_eval_data_loader
 from modules.utils import gpt_loss_func
 from modules.tokenizer import build_tokenizer
@@ -17,10 +18,6 @@ from utils.dist_args_utils import *
 from utils.dist_checkpoint_utils import *
 from comm.comm_utils import *
 import compress.flag
-
-def save_args_to_json(args, filename="config.json"):
-    with open(filename, "w") as f:
-        json.dump(vars(args), f, indent=4)
 
 def test_loop(args, pipe, device, test_data_loader):
     
@@ -219,65 +216,83 @@ def train_loop(args, pipe, device, train_data_loader, test_data_loader):
                 if do_sync_before_save:
                     pipe.dp_optim.rollback_parameters()
         
+def load_args_from_json(filename="config.json"):
+    with open(filename, "r") as f:
+        config = json.load(f)
+    return config
 
 def main():
     parser = argparse.ArgumentParser(description='Gpipe-GPT')
-    add_device_arguments(parser)
-    add_torch_distributed_arguments(parser)
-    add_model_arguments(parser)
-    add_task_arguments(parser)
-    add_training_hyper_parameter_arguments(parser)
-    add_mixed_precision_arguments(parser)
-    add_parallel_schema_arguments(parser)
-    add_acitvation_compression_arguments(parser)
-    parser.add_argument('--model-name', type=str, default='gpt2', metavar='S',
-                        help='model name or path')
-    parser.add_argument('--tokenizer-name', type=str, default='gpt2', metavar='S',
-                        help='tokenizer name or path')
-    parser.add_argument('--model-type', type=str, default='gpt2', metavar='S',
-                        help='model name or path')
-    parser.add_argument('--checkpoint-path', type=str, default='model_checkpoints/gpt2')
-    parser.add_argument('--load-checkpoint-path', type=str, default=None, help='Path to load checkpoint from, if different from checkpoint-path')
-    parser.add_argument('--task-name', type=str, default='cot', metavar='S',
-                        help='task name')
-    parser.add_argument('--warmup-steps', type=int, default=0, help='-')
-    parser.add_argument('--train-warmup-steps', type=int, default=0, help='-')
-    parser.add_argument('--total-steps', type=int, default=None, help='-')
-    parser.add_argument('--total-scheduler-steps', type=int, default=None, help='-')
-    parser.add_argument('--scheduler', type=str, default='linear')
-    parser.add_argument('--load-pretrained-model', 
-                        type=lambda x: x.lower()=='true', default=True, metavar='S',
-                        help='load pretrained model or not.')
-    parser.add_argument('--load-checkpoint', 
-                        type=lambda x: x.lower()=='true', default=True, metavar='S',
-                        help='load pretrained model or not.')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--profiling', type=str, default='no-profiling', metavar='S',
-                        help='enable which profiling? default: tidy mode')
-    parser.add_argument('--trace-postfix', type=str, default='default', metavar='S',
-                        help='postfix of the tracing file name.')
-    parser.add_argument('--evaluation-steps', 
-                        type=int, default=0, metavar='S',
-                        help='every x steps, do evaluation. (0 means do not do evaluation)')
-    parser.add_argument('--evaluation-data',
-                        type=str, default=None, help="path of eval data in jsonl")
-    parser.add_argument('--evaluation-num-batch',
-                        type=int, default=None, help="for debug purpose, only eval the first several batch.")
-    parser.add_argument('--checkpoint-steps', 
-                        type=int, default=0, metavar='S',
-                        help='every x steps, save checkpoint. (0 means do not save checkpoint)')
-    parser.add_argument('--net-interface', 
-                        type=str, default='lo', metavar='S',
-                        help='net_interface')
-    parser.add_argument('--job-id', 
-                        type=str, default="0", metavar='S',
-                        help='an uuid')
-    parser.add_argument("--use_cuda", type=bool, default=False)
+    # add_device_arguments(parser)
+    # add_torch_distributed_arguments(parser)
+    # add_model_arguments(parser)
+    # add_task_arguments(parser)
+    # add_training_hyper_parameter_arguments(parser)
+    # add_mixed_precision_arguments(parser)
+    # add_parallel_schema_arguments(parser)
+    # add_acitvation_compression_arguments(parser)
+    parser.add_argument("--data_path", type=str, required=True, help="Name of the dataset (Hugging Face hub).")
+    parser.add_argument("--model_path", type=str, required=True, help="Name of the pre-trained model.")
+    parser.add_argument("--config_path", type=str, default="config.json", help="Path to the config.json file.")
+    parser.add_argument("--output_dir", type=str, default="./model_output", help="Directory to save the fine-tuned model.")
+
+    # parser.add_argument('--tokenizer-name', type=str, default='gpt2', metavar='S',
+    #                     help='tokenizer name or path')
+    # parser.add_argument('--model-type', type=str, default='gpt2', metavar='S',
+    #                     help='model name or path')
+    # parser.add_argument('--checkpoint-path', type=str, default='model_checkpoints/gpt2')
+    # parser.add_argument('--load-checkpoint-path', type=str, default=None, help='Path to load checkpoint from, if different from checkpoint-path')
+    # parser.add_argument('--task-name', type=str, default='cot', metavar='S',
+    #                     help='task name')
+    # parser.add_argument('--warmup-steps', type=int, default=0, help='-')
+    # parser.add_argument('--train-warmup-steps', type=int, default=0, help='-')
+    # parser.add_argument('--total-steps', type=int, default=None, help='-')
+    # parser.add_argument('--total-scheduler-steps', type=int, default=None, help='-')
+    # parser.add_argument('--scheduler', type=str, default='linear')
+    # parser.add_argument('--load-pretrained-model', 
+    #                     type=lambda x: x.lower()=='true', default=True, metavar='S',
+    #                     help='load pretrained model or not.')
+    # parser.add_argument('--load-checkpoint', 
+    #                     type=lambda x: x.lower()=='true', default=True, metavar='S',
+    #                     help='load pretrained model or not.')
+    # parser.add_argument('--seed', type=int, default=1, metavar='S',
+    #                     help='random seed (default: 1)')
+    # parser.add_argument('--profiling', type=str, default='no-profiling', metavar='S',
+    #                     help='enable which profiling? default: tidy mode')
+    # parser.add_argument('--trace-postfix', type=str, default='default', metavar='S',
+    #                     help='postfix of the tracing file name.')
+    # parser.add_argument('--evaluation-steps', 
+    #                     type=int, default=0, metavar='S',
+    #                     help='every x steps, do evaluation. (0 means do not do evaluation)')
+    # parser.add_argument('--evaluation-data',
+    #                     type=str, default=None, help="path of eval data in jsonl")
+    # parser.add_argument('--evaluation-num-batch',
+    #                     type=int, default=None, help="for debug purpose, only eval the first several batch.")
+    # parser.add_argument('--checkpoint-steps', 
+    #                     type=int, default=0, metavar='S',
+    #                     help='every x steps, save checkpoint. (0 means do not save checkpoint)')
+    # parser.add_argument('--net-interface', 
+    #                     type=str, default='lo', metavar='S',
+    #                     help='net_interface')
+    # parser.add_argument('--job-id', 
+    #                     type=str, default="0", metavar='S',
+    #                     help='an uuid')
+    # parser.add_argument("--use_cuda", type=bool, default=False)
     args = parser.parse_args()
 
+    try:
+        config = load_args_from_json(args.config_path)
+        # Override default argparse values with those from JSON
+        for key, value in config.items():
+            setattr(args, key, value)
 
-    save_args_to_json(args, filename="config.json")
+        args.checkpoint_path = args.output_dir
+        args.model_name = args.model_path
+        args.tokenizer_name = args.model_path
+        args.task_name = args.data_path
+
+    except FileNotFoundError:
+        print("Config file not found. Using default arguments.")
     
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -342,9 +357,9 @@ def main():
     
     if get_pipeline_parallel_rank() == 0 and dp_rank == 0:
         train_data_loader = get_train_data_loader(args, tokenizer)
+        print("--> train_data_loader")
     else:
-        print("load train")
-        exit(-1)
+        print("No train data loader for this rank.")
         train_data_loader = None
         
     if args.evaluation_data is not None and dp_rank == 0:

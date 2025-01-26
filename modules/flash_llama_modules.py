@@ -38,7 +38,7 @@ from torch.utils.checkpoint import checkpoint
 import torch.nn.functional as F
 
 from flash_attn.layers.rotary import RotaryEmbedding
-from flash_attn.flash_attention import FlashAttention
+from flash_attn.modules.mha import MHA
 flash_attn_installed = True
 print('>>>>> flash attention')
 
@@ -522,7 +522,7 @@ class LlamaAttention(nn.Module):
             persistent=False,
         )
         self.rotary_emb = RotaryEmbedding(self.rotary_ndims, base=10000, interleaved=False)
-        self.flash_attn = FlashAttention(softmax_scale=1.0/self.norm_factor, attention_dropout = 0)
+        self.flash_attn = MHA(softmax_scale=1.0/self.norm_factor, attention_dropout = 0)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()

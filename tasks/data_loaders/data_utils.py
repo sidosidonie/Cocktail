@@ -102,7 +102,13 @@ def name_to_dataset(task, tokenizer, args):
         elif task == 'cot':
             from .cot import StreamDataset
             dataset = StreamDataset('./data/mmlu-cot.json', tokenizer, args.seq_length)
-        elif task.endswith('jsonl'):
+        elif task.endswith('jsonl') or task.endswith("json"):
+            if 'cot' in task:
+                from .cot import StreamDataset
+                print("read data from", task)
+                dataset = StreamDataset(task, tokenizer, args.seq_length)
+                return dataset
+
             if 'p3' in task:
                 from .p3 import StreamDataset
             else:

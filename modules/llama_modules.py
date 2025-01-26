@@ -86,14 +86,20 @@ class LlamaTokenizer(PreTrainedTokenizer):
         **kwargs,
     ):
         """Initialisation"""
+        print("======== tokenizer ")
         self.sp_model_kwargs = {} if sp_model_kwargs is None else sp_model_kwargs
-        super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
         self.vocab_file = vocab_file
         self.add_bos_token = add_bos_token
         self.add_eos_token = add_eos_token
         self.decode_with_prefix_space = decode_with_prefix_space
-        self.sp_model = spm.SentencePieceProcessor(**self.sp_model_kwargs)
+        print(self.sp_model_kwargs)
+        # self.sp_model = spm.SentencePieceProcessor(**self.sp_model_kwargs)
+        self.sp_model = spm.SentencePieceProcessor()
+        print(f"{vocab_file=}")
         self.sp_model.Load(vocab_file)
+        super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
+        print(self.sp_model)
+        print("sppppppp")
         self._no_prefix_space_tokens = None
 
     @property
@@ -106,7 +112,18 @@ class LlamaTokenizer(PreTrainedTokenizer):
     @property
     def vocab_size(self):
         """Returns vocab size"""
-        return self.sp_model.get_piece_size()
+        print("-------- return vocab size")
+        print(self.sp_model)
+        ret = self.sp_model.get_piece_size()
+        print(ret)
+        return ret
+
+    def get_vocab_size(self):
+        """Returns vocab size"""
+        print("-------- return vocab size")
+        ret = self.sp_model.get_piece_size()
+        print(ret)
+        return ret
 
     @property
     def bos_token_id(self) -> Optional[int]:
@@ -118,7 +135,7 @@ class LlamaTokenizer(PreTrainedTokenizer):
 
     def get_vocab(self):
         """Returns vocab as a dict"""
-        vocab = {self.convert_ids_to_tokens(i): i for i in range(self.vocab_size)}
+        vocab = {self.convert_ids_to_tokens(i): i for i in range(self.get_vocab_size())}
         vocab.update(self.added_tokens_encoder)
         return vocab
 

@@ -8,7 +8,7 @@ from data_parallel.dist_dp_utils import get_dp_module
 from optimizer.optimizer import get_fp16_optimizer
 import os
 import cupy
-import wandb
+# import wandb
 from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup
 
 flag_profile = int(os.environ.get('FLAG_BENCHMARK', '0'))
@@ -186,11 +186,11 @@ class GpipeAsync:
                     args.project_name = "test-" + \
                         re.sub('[^a-zA-Z0-9 \n\.]', '_', args.task_name)
 
-                wandb.init(
-                    project=args.project_name, 
-                    # entity='pipeline-activation-compression',
-                    config=args,
-                )
+                # wandb.init(
+                #     project=args.project_name, 
+                #     # entity='pipeline-activation-compression',
+                #     config=args,
+                # )
 
             if self.pp_rank == self.pipeline_group_size - 1:
                 self.output_micro_batches_grad = None
@@ -535,13 +535,13 @@ class GpipeAsync:
 
         if not flag_profile:
             if self.pp_rank == self.pipeline_group_size - 1:
-                wandb.log(
-                    {
-                        'loss': sum(tr_loss)/len(tr_loss),
-                        'lr': self.scheduler.get_last_lr()[0],
-                        #                     'scale': self.optimizer.get_loss_scale(), ##todo
-                    }, step=self.global_step,
-                )
+                # wandb.log(
+                #     {
+                #         'loss': sum(tr_loss)/len(tr_loss),
+                #         'lr': self.scheduler.get_last_lr()[0],
+                #         #                     'scale': self.optimizer.get_loss_scale(), ##todo
+                #     }, step=self.global_step,
+                # )
                 print(f"step: {self.global_step}, loss: {sum(tr_loss)/len(tr_loss):.6f}, lr: {self.scheduler.get_last_lr()[0]:.6f}")
                 print("logging...")
                 if hasattr(self, 'experiment'):
