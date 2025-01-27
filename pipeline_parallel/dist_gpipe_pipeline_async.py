@@ -79,11 +79,13 @@ class GpipeAsync:
         a group of events to check if computation finishes in the backward propagation.
     """
 
-    def __init__(self, args, config, device, use_dp=False, 
+    def __init__(self, args, config, device, use_dp=False, progress=None, control=None,
                  _StageFull=GPTStageFull,
                  _StageFirst=GPTStageFirst,
                  _StageLast=GPTStageLast,
                  _StageMiddle=GPTStageMiddle):
+        self.progress = progress
+        self.control = control
         if args.fp16:
             self.use_fp16 = True
             self.use_dynamic_scale = (args.loss_scale == 0)
@@ -539,8 +541,12 @@ class GpipeAsync:
                 #         #                     'scale': self.optimizer.get_loss_scale(), ##todo
                 #     }, step=self.global_step,
                 # )
-                print(f"step: {self.global_step}, loss: {sum(tr_loss)/len(tr_loss):.6f}, lr: {self.scheduler.get_last_lr()[0]:.6f}")
+                print(f"this is the step: {self.global_step}, loss: {sum(tr_loss)/len(tr_loss):.6f}, lr: {self.scheduler.get_last_lr()[0]:.6f}")
+                log_msg = f"this is the step: {self.global_step}, loss: {sum(tr_loss)/len(tr_loss):.6f}, lr: {self.scheduler.get_last_lr()[0]:.6f}"
+                if self.progress is not None:
+                    self.progress.on_log(args=None, state=self, control=self.control, logs=log_msg)
                 print("logging...")
+                
                 if hasattr(self, 'experiment'):
                     self.experiment.log_metrics({
                         'loss': sum(tr_loss)/len(tr_loss),

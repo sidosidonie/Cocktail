@@ -34,7 +34,8 @@ class ProgressCallback(TrainerCallback):
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         logs = logs or {}
-        if state.is_local_process_zero:  # Only log for the main process in distributed training
+        if True:  # Only log for the main process in distributed training
+        # if state.is_local_process_zero:  # Only log for the main process in distributed training
             log_message = f"Step: {state.global_step}, Logs: {logs}\n"
             try:
                 self.log_file.write(log_message)
@@ -132,7 +133,6 @@ def train_loop(args, pipe, device, train_data_loader, test_data_loader,
     if get_pipeline_parallel_rank() == 0 and dp_rank == 0:
         
         for i, data in enumerate(train_data_loader):
-            progress.on_log(args=None, state=pipe, control=control)
             #if i < pipe.global_step:
                 #print(i)
                 #continue
@@ -363,7 +363,7 @@ def main():
     else:
         print("Running ", args.pp_mode, " without data parallel.")
     
-    pipe = get_pp_module(args, config, device, use_dp)
+    pipe = get_pp_module(args, config, device, use_dp, progress, control)
     
     if args.load_checkpoint:
         load_checkpoint(pipe, args)
