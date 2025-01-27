@@ -10,7 +10,7 @@ from modules.utils import gpt_loss_func
 from modules.tokenizer import build_tokenizer
 from pipeline_parallel.dist_pp_utils import get_pp_module
 
-from transformers import AutoConfig, PretrainedConfig
+from transformers import AutoConfig, PretrainedConfig, TrainerCallback, TrainerControl
 import datasets
 
 # import wandb
@@ -18,6 +18,37 @@ from utils.dist_args_utils import *
 from utils.dist_checkpoint_utils import *
 from comm.comm_utils import *
 import compress.flag
+
+class ProgressCallback(TrainerCallback):
+    def __init__(self, log_file_path="/app/mnt/progress.log"):
+        self.log_file_path = log_file_path
+        self.log_file = None
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        # Open the log file at the start of training
+        try:
+            self.log_file = open(self.log_file_path, "a")
+        except Exception as e:
+            print(f"Error opening log file: {e}")
+            exit(1)
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        logs = logs or {}
+        if state.is_local_process_zero:  # Only log for the main process in distributed training
+            log_message = f"Step: {state.global_step}, Logs: {logs}\n"
+            try:
+                self.log_file.write(log_message)
+                self.log_file.flush()  # Ensure the log is written immediately
+            except Exception as e:
+                print(f"Error writing to log file: {e}")
+
+    def on_train_end(self, args, state, control, **kwargs):
+        # Close the log file at the end of training
+        if self.log_file:
+            try:
+                self.log_file.close()
+            except Exception as e:
+                print(f"Error closing log file: {e}")
 
 def test_loop(args, pipe, device, test_data_loader):
     
@@ -71,9 +102,11 @@ def test_loop(args, pipe, device, test_data_loader):
     
 
 
-def train_loop(args, pipe, device, train_data_loader, test_data_loader):
+def train_loop(args, pipe, device, train_data_loader, test_data_loader, 
+               progress: ProgressCallback, control : TrainerControl):
     
     print('training starts......')
+    progress.on_train_begin(args=None, state=pipe, control=control)
 
     pipe.model.train() # Flag .training to True to enable Dropout
     
@@ -99,6 +132,7 @@ def train_loop(args, pipe, device, train_data_loader, test_data_loader):
     if get_pipeline_parallel_rank() == 0 and dp_rank == 0:
         
         for i, data in enumerate(train_data_loader):
+            progress.on_log(args=None, state=pipe, control=control)
             #if i < pipe.global_step:
                 #print(i)
                 #continue
@@ -141,6 +175,7 @@ def train_loop(args, pipe, device, train_data_loader, test_data_loader):
             
             if pipe.global_step >= args.total_steps:
                 stop_flag.data[:] = 1
+
             
     elif get_pipeline_parallel_rank() == 0:
         
@@ -215,6 +250,9 @@ def train_loop(args, pipe, device, train_data_loader, test_data_loader):
                     save_checkpoint(pipe, args)
                 if do_sync_before_save:
                     pipe.dp_optim.rollback_parameters()
+
+    progress.on_train_end(args=None, state=pipe, control=control)
+
         
 def load_args_from_json(filename="config.json"):
     with open(filename, "r") as f:
@@ -223,63 +261,11 @@ def load_args_from_json(filename="config.json"):
 
 def main():
     parser = argparse.ArgumentParser(description='Gpipe-GPT')
-    # add_device_arguments(parser)
-    # add_torch_distributed_arguments(parser)
-    # add_model_arguments(parser)
-    # add_task_arguments(parser)
-    # add_training_hyper_parameter_arguments(parser)
-    # add_mixed_precision_arguments(parser)
-    # add_parallel_schema_arguments(parser)
-    # add_acitvation_compression_arguments(parser)
     parser.add_argument("--data_path", type=str, required=True, help="Name of the dataset (Hugging Face hub).")
     parser.add_argument("--model_path", type=str, required=True, help="Name of the pre-trained model.")
     parser.add_argument("--config_path", type=str, default="config.json", help="Path to the config.json file.")
     parser.add_argument("--output_dir", type=str, default="./model_output", help="Directory to save the fine-tuned model.")
-
-    # parser.add_argument('--tokenizer-name', type=str, default='gpt2', metavar='S',
-    #                     help='tokenizer name or path')
-    # parser.add_argument('--model-type', type=str, default='gpt2', metavar='S',
-    #                     help='model name or path')
-    # parser.add_argument('--checkpoint-path', type=str, default='model_checkpoints/gpt2')
-    # parser.add_argument('--load-checkpoint-path', type=str, default=None, help='Path to load checkpoint from, if different from checkpoint-path')
-    # parser.add_argument('--task-name', type=str, default='cot', metavar='S',
-    #                     help='task name')
-    # parser.add_argument('--warmup-steps', type=int, default=0, help='-')
-    # parser.add_argument('--train-warmup-steps', type=int, default=0, help='-')
-    # parser.add_argument('--total-steps', type=int, default=None, help='-')
-    # parser.add_argument('--total-scheduler-steps', type=int, default=None, help='-')
-    # parser.add_argument('--scheduler', type=str, default='linear')
-    # parser.add_argument('--load-pretrained-model', 
-    #                     type=lambda x: x.lower()=='true', default=True, metavar='S',
-    #                     help='load pretrained model or not.')
-    # parser.add_argument('--load-checkpoint', 
-    #                     type=lambda x: x.lower()=='true', default=True, metavar='S',
-    #                     help='load pretrained model or not.')
-    # parser.add_argument('--seed', type=int, default=1, metavar='S',
-    #                     help='random seed (default: 1)')
-    # parser.add_argument('--profiling', type=str, default='no-profiling', metavar='S',
-    #                     help='enable which profiling? default: tidy mode')
-    # parser.add_argument('--trace-postfix', type=str, default='default', metavar='S',
-    #                     help='postfix of the tracing file name.')
-    # parser.add_argument('--evaluation-steps', 
-    #                     type=int, default=0, metavar='S',
-    #                     help='every x steps, do evaluation. (0 means do not do evaluation)')
-    # parser.add_argument('--evaluation-data',
-    #                     type=str, default=None, help="path of eval data in jsonl")
-    # parser.add_argument('--evaluation-num-batch',
-    #                     type=int, default=None, help="for debug purpose, only eval the first several batch.")
-    # parser.add_argument('--checkpoint-steps', 
-    #                     type=int, default=0, metavar='S',
-    #                     help='every x steps, save checkpoint. (0 means do not save checkpoint)')
-    # parser.add_argument('--net-interface', 
-    #                     type=str, default='lo', metavar='S',
-    #                     help='net_interface')
-    # parser.add_argument('--job-id', 
-    #                     type=str, default="0", metavar='S',
-    #                     help='an uuid')
-    # parser.add_argument("--use_cuda", type=bool, default=False)
     args = parser.parse_args()
-
     try:
         config = load_args_from_json(args.config_path)
         # Override default argparse values with those from JSON
@@ -339,6 +325,9 @@ def main():
         })
         print(config)
     
+    progress = ProgressCallback()
+    control = TrainerControl()
+
     # num layer globally
     if hasattr(config, 'num_hidden_layers'):
         args.max_layers = config.num_hidden_layers
@@ -357,9 +346,7 @@ def main():
     
     if get_pipeline_parallel_rank() == 0 and dp_rank == 0:
         train_data_loader = get_train_data_loader(args, tokenizer)
-        print("--> train_data_loader")
     else:
-        print("No train data loader for this rank.")
         train_data_loader = None
         
     if args.evaluation_data is not None and dp_rank == 0:
@@ -385,7 +372,7 @@ def main():
         pipe.optimizer.reload_model_params()
 
     if args.profiling == 'no-profiling':
-        train_loop(args, pipe, device, train_data_loader, test_data_loader)
+        train_loop(args, pipe, device, train_data_loader, test_data_loader, progress, control)
     else:
         prefix = './trace_json/gpt3_' + args.pp_mode
         if use_dp:
@@ -395,14 +382,14 @@ def main():
                      args.profiling + '_' + args.trace_postfix + '.json'
         if args.profiling == 'tidy_profiling':
             try:
-                train_loop(args, pipe, device, train_data_loader, test_data_loader)
+                train_loop(args, pipe, device, train_data_loader, test_data_loader, progress, control)
             except Exception as e:
                 raise e
                 print(get_pipeline_parallel_rank(), e)
             pipe.export_profiling_result(filename=trace_file)
         elif args.profiling == 'pytorch_profiling':
             with profiler.profile(profile_memory=True, use_cuda=args.use_cuda) as prof:
-                train_loop(args, pipe, device, train_data_loader, test_data_loader)
+                train_loop(args, pipe, device, train_data_loader, test_data_loader, progress, control)
             print(prof.key_averages().table())
             prof.export_chrome_trace(trace_file)
         else:

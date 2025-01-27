@@ -79,19 +79,16 @@ class GpipeAsync:
         a group of events to check if computation finishes in the backward propagation.
     """
 
-    def __init__(self, args, config, device, use_dp=False,
+    def __init__(self, args, config, device, use_dp=False, 
                  _StageFull=GPTStageFull,
                  _StageFirst=GPTStageFirst,
                  _StageLast=GPTStageLast,
                  _StageMiddle=GPTStageMiddle):
-        print("=======Initialize Gpipe.")
         if args.fp16:
             self.use_fp16 = True
             self.use_dynamic_scale = (args.loss_scale == 0)
-            print("=======Gpipe use FP16")
         else:
             self.use_fp16 = False
-            print("=======Gpipe use FP32")
         self.use_dp = use_dp
         self.dtype = torch.float16 if self.use_fp16 else torch.float32
         self.global_rank = args.rank
