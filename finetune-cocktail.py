@@ -264,8 +264,6 @@ def get_only_file(folder):
     return files[0] if len(files) == 1 else None
 
 def main():
-    get_only_file("data")
-    exit(-1)
     print("Start cocktail main...")
     parser = argparse.ArgumentParser(description='Gpipe-GPT')
     parser.add_argument("--data_path", type=str, required=True, help="Name of the dataset (Hugging Face hub).")
