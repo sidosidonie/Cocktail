@@ -70,7 +70,7 @@ def save_checkpoint(pipe, args):
     checkpoint_step_path = os.path.join(args.checkpoint_path, f"checkpoint_{latest_step}")
 
     print(f"MKDIR: mkdir -p {checkpoint_step_path}")
-    if not os.path.exists(newpath):
+    if not os.path.exists(checkpoint_step_path):
         os.makedirs(checkpoint_step_path)
 
     torch.save(
