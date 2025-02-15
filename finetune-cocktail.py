@@ -288,6 +288,11 @@ def main():
         else:
             args.task_name = args.data_path
 
+        # create output folder
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
+
+
     except FileNotFoundError:
         print("Config file not found. Using default arguments.")
 
