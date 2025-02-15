@@ -68,8 +68,10 @@ def save_checkpoint(pipe, args):
     
     latest_step = pipe.global_step
     checkpoint_step_path = os.path.join(args.checkpoint_path, f"checkpoint_{latest_step}")
-    
-    os.system(f"mkdir -p {checkpoint_step_path}")
+
+    print(f"MKDIR: mkdir -p {checkpoint_step_path}")
+    if not os.path.exists(newpath):
+        os.makedirs(checkpoint_step_path)
 
     torch.save(
         pipe.model.model.state_dict(),
