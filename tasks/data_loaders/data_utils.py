@@ -14,7 +14,7 @@ from comm.comm_utils import *
 from itertools import islice
 from random import randint
 
-SHOW_DATA = int(os.environ.get('SHOW_DATA', 1))
+SHOW_DATA = int(os.environ.get('SHOW_DATA', 0))
 
 
 class StreamDatasetList(IterableDataset):
@@ -73,19 +73,20 @@ class StreamDatasetList(IterableDataset):
         return self.it
     
     
-def name_to_dataset(task, tokenizer, args):
+def name_to_dataset(task, tokenizer, args, data_path):
     
     if task != '':
         if task == 'natural_instructions' or task == 'ni':
             from .natural_instructions import StreamDataset
-            dataset = StreamDataset('./natural-instructions/', tokenizer, args.seq_length)
+            dataset = StreamDataset(data_path, tokenizer, args.seq_length)
         elif task == 'p3':
             from .p3 import StreamDataset
-            data = load_dataset("Muennighoff/P3", split="train").shuffle(seed=args.seed)
+            # data = load_dataset("Muennighoff/P3", split="train").shuffle(seed=args.seed)
+            data = load_dataset("json", data_files=data_path, split="train", streaming=True) # jsonl file default is "train"
             dataset = StreamDataset(data, tokenizer, args.seq_length)
         elif task == 'natural_instructions_dehelm' or task == 'ni_dehelm':
             from .natural_instructions_dehelm import StreamDataset
-            dataset = StreamDataset('./natural-instructions-dehelm/', tokenizer, args.seq_length)
+            dataset = StreamDataset(data_path, tokenizer, args.seq_length)
         elif task == 'p3_dehelm':
             from .p3 import StreamDataset
             data = load_dataset('togethercomputer/RedPajama-Instruct-Data', data_files='data/P3_decontaminated.jsonl.zst', split='train').shuffle(seed=args.seed)
@@ -101,20 +102,19 @@ def name_to_dataset(task, tokenizer, args):
             dataset = StreamDataset(data, tokenizer, args.seq_length)
         elif task == 'cot':
             from .cot import StreamDataset
-            dataset = StreamDataset('./data/mmlu-cot.json', tokenizer, args.seq_length)
-        elif task.endswith('jsonl') or task.endswith("json"):
-            if 'cot' in task:
-                from .cot import StreamDataset
-                print("read data from", task)
-                dataset = StreamDataset(task, tokenizer, args.seq_length)
-                return dataset
+            dataset = StreamDataset(data_path, tokenizer, args.seq_length)
+        # elif task.endswith('jsonl') or task.endswith("json"):
+        #     if 'cot' in task:
+        #         from .cot import StreamDataset
+        #         dataset = StreamDataset(task, tokenizer, args.seq_length)
+        #         return dataset
 
-            if 'p3' in task:
-                from .p3 import StreamDataset
-            else:
-                from .pile import StreamDataset
-            data = load_dataset("json", data_files=task, split="train", streaming=True).shuffle(buffer_size=100_000, seed=args.seed)
-            dataset = StreamDataset(data, tokenizer, args.seq_length)
+        #     if 'p3' in task:
+        #         from .p3 import StreamDataset
+        #     else:
+        #         from .pile import StreamDataset
+        #     data = load_dataset("json", data_files=task, split="train", streaming=True).shuffle(buffer_size=100_000, seed=args.seed)
+        #     dataset = StreamDataset(data, tokenizer, args.seq_length)
         else:
             from .pile import StreamDataset
             data = load_dataset(task, split="train", streaming=True).shuffle(buffer_size=10_000, seed=args.seed).with_format("torch")
@@ -144,13 +144,17 @@ def name_to_dataset_eval(task, tokenizer, args):
 def get_train_data_loader(args, tokenizer, num_workers=1, state_dict=None):
     
     task_list = args.task_name.split(',')
+    data_path = args.data_path.split(",")
+    if len(task_list) != len(data_path):
+        raise ValueError("task_name and data_path should have the same length")
+
     task_names = []
     datasets = []
     probs = []
     
     print('data_utils: parse task_list')
     
-    for task in task_list:
+    for i, task in enumerate(task_list):
         if ':' in task:
             task, prob = task.strip().split(':')
             prob = float(prob)
@@ -158,7 +162,7 @@ def get_train_data_loader(args, tokenizer, num_workers=1, state_dict=None):
             task = task.strip()
             prob = 1.0
             
-        dataset = name_to_dataset(task, tokenizer, args)
+        dataset = name_to_dataset(task, tokenizer, args, data_path[i])
             
         print('data_utils:', task, prob)
     

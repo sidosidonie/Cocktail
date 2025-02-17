@@ -5,11 +5,13 @@ import numpy as np
 import torch
 import torch.autograd.profiler as profiler
 import json
+from pprint import pprint as pp
 from tasks.data_loaders.data_utils import get_train_data_loader, get_eval_data_loader
 from modules.utils import gpt_loss_func
 from modules.tokenizer import build_tokenizer
 from pipeline_parallel.dist_pp_utils import get_pp_module
 from pathlib import Path
+import time
 
 from transformers import AutoConfig, PretrainedConfig, TrainerCallback, TrainerControl
 import datasets
@@ -263,39 +265,54 @@ def get_only_file(folder):
     files = [f.name for f in Path(folder).iterdir() if f.is_file()]
     return files[0] if len(files) == 1 else None
 
-def main():
-    print("Start cocktail main...")
+def load_default_config():
+    default_config_file = "/app/ckt/config.json"
+    config = load_args_from_json(default_config_file)
+    parser = argparse.ArgumentParser(description='Default-Gpipe-GPT')
+    args = parser.parse_args([])
+    for key, value in config.items():
+        setattr(args, key, value)
+    return args
+
+def parse_arguments():
     parser = argparse.ArgumentParser(description='Gpipe-GPT')
-    parser.add_argument("--data_path", type=str, required=True, help="Name of the dataset (Hugging Face hub).")
-    parser.add_argument("--model_path", type=str, required=True, help="Name of the pre-trained model.")
-    parser.add_argument("--config_path", type=str, default="config.json", help="Path to the config.json file.")
-    parser.add_argument("--output_dir", type=str, default="./model_output", help="Directory to save the fine-tuned model.")
-    args = parser.parse_args()
+    parser.add_argument("--data_path", type=str, required=True, help="Path of the dataset")
+    parser.add_argument("--model_path", type=str, required=True, help="Path of the pre-trained model.")
+    parser.add_argument("--config_path", type=str, default="/app/mnt/config.json", help="Path to the config.json file.")
+    parser.add_argument("--output_dir", type=str, default="/app/mnt/model_output", help="Directory to save the fine-tuned model.")
+    input_args = parser.parse_args()
     try:
-        config = load_args_from_json(args.config_path)
+        args = load_default_config()
+        config = load_args_from_json(input_args.config_path)
         # Override default argparse values with those from JSON
         for key, value in config.items():
             setattr(args, key, value)
 
-        args.checkpoint_path = args.output_dir
-        args.model_name = args.model_path
-        args.tokenizer_name = args.model_path
+        # output model path, which is different from ckp path
+        args.output_dir = input_args.output_dir
+        args.model_name = input_args.model_path
+        args.tokenizer_name = input_args.model_path
+        args.data_path = input_args.data_path
 
-        task_type = config["task_type"]
-        if task_type == "cot":
+        # create checkpoint path
+        if not os.path.exists(args.checkpoint_path):
+            os.makedirs(args.checkpoint_path)
+
+        task_name = config["task_name"]
+        # check if input_args.data_path is a directory
+        if os.path.isdir(input_args.data_path):
             data_file = get_only_file(args.data_path)
-            args.task_name = args.data_path + "/" + data_file
+            args.data_path = input_args.data_path + "/" + data_file
         else:
-            args.task_name = args.data_path
+            args.data_path = input_args.data_path
 
-        # create output folder
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
+        if not os.path.exists(input_args.output_dir):
+            os.makedirs(input_args.output_dir)
+        return args
+    except Exception as e:
+        print("Error parsing arguments:", e)
 
-
-    except FileNotFoundError:
-        print("Config file not found. Using default arguments.")
-
+def finetune(args):
     torch.manual_seed(args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -413,5 +430,48 @@ def main():
             assert False
     print(get_pipeline_parallel_rank(), 'finished.')
 
+def pick_checkpoint(args):
+    ckp_path = args.checkpoint_path
+    out_path = args.output_dir
+    # get the last checkpoint
+    last_ckp = args.checkpoint_path + "/latest"
+    with open(last_ckp, "r") as f:
+        last_ckp = f.readline().strip()
+        last_ckp_path = args.checkpoint_path + f"/checkpoint_{last_ckp}"
+        if not os.path.exists(last_ckp_path):
+            raise FileNotFoundError(f"Checkpoint {last_ckp_path} not found.")
+
+    # copy the last checkpoint to the output directory
+    out_ckp = out_path + "/checkpoint"
+    os.system(f"cp -r {last_ckp_path} {out_ckp}")
+
+def main():
+    try:
+        args = parse_arguments()
+    except Exception as e:
+        print("Error parsing arguments:", e)
+        raise e
+
+    try:
+        print("Start finetuning...")
+        finetune(args)
+        print("Pick the latest checkpoint as output model...")
+        pick_checkpoint(args)
+    except Exception as e:
+        print("Error during training:", e)
+        raise e
+
+def retry(func, max_attempts=3, delay=1, *args, **kwargs):
+    attempts = 0
+    while attempts < max_attempts:
+        try:
+            return func(*args, **kwargs)  # Try executing the function
+        except Exception as e:
+            attempts += 1
+            print(f"Attempt {attempts} failed: {e}")
+            if attempts >= max_attempts:
+                raise  # Raise the exception if max attempts reached
+            time.sleep(delay)  # Optional delay before retrying
+
 if __name__ == '__main__':
-    main()
+    retry(main)

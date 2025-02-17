@@ -34,14 +34,11 @@ def create_optimizer(model, optimizer_type, weight_decay=0.01, learning_rate=2e-
     
     if optimizer_type == 'adamw' or optimizer_type == 'adam':
         from torch.optim import AdamW
-        print('>>>>> using Adam')
     elif optimizer_type == '8bit-adam':
         from bitsandbytes.optim import Adam8bit as AdamW
-        print('>>>>> using 8bit-Adam')
     elif optimizer_type == 'fusedadam':
         import apex
         AdamW = apex.optimizers.FusedAdam
-        print('>>>>> using Apex FusedAdam')
     else:
         assert False
     
@@ -781,7 +778,6 @@ class GpipeAsync:
                                        labels=target, pred_func=pred_func)
             if output_ is not None:
                 outputs = torch.cat(outputs, 0).mean().item()
-                print(outputs)
                 output_.append(outputs)
         torch.cuda.synchronize()
         # self.comm.barrier()

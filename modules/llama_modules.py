@@ -112,17 +112,12 @@ class LlamaTokenizer(PreTrainedTokenizer):
     @property
     def vocab_size(self):
         """Returns vocab size"""
-        print("-------- return vocab size")
-        print(self.sp_model)
         ret = self.sp_model.get_piece_size()
-        print(ret)
         return ret
 
     def get_vocab_size(self):
         """Returns vocab size"""
-        print("-------- return vocab size")
         ret = self.sp_model.get_piece_size()
-        print(ret)
         return ret
 
     @property

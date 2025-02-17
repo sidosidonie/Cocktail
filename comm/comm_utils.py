@@ -114,7 +114,6 @@ def init_communicators(args):
                 
                 for i in range(args.pipeline_group_size):
                     ranks = [rank for rank in range(i, args.world_size, args.pipeline_group_size)]
-                    print(args.rank, ranks)
                     data_group = torch.distributed.new_group(ranks, backend='gloo')
                     if args.rank in ranks:
                         def to_global_rank(dp_rank):
@@ -185,7 +184,6 @@ def reinit_dp_communicator(args):
                 
                 for i in range(args.pipeline_group_size):
                     ranks = [rank for rank in range(i, args.world_size, args.pipeline_group_size)]
-                    print(args.rank, ranks)
                     data_group = torch.distributed.new_group(ranks, backend='gloo')
                     if args.rank in ranks:
                         def to_global_rank(dp_rank):
