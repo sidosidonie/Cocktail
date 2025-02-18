@@ -266,7 +266,7 @@ def get_only_file(folder):
     return files[0] if len(files) == 1 else None
 
 def load_default_config():
-    default_config_file = "/app/ckt/config.json"
+    default_config_file = "/app/Cocktail/config.json"
     config = load_args_from_json(default_config_file)
     parser = argparse.ArgumentParser(description='Default-Gpipe-GPT')
     args = parser.parse_args([])
