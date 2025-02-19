@@ -12,6 +12,7 @@ from modules.tokenizer import build_tokenizer
 from pipeline_parallel.dist_pp_utils import get_pp_module
 from pathlib import Path
 import time
+import shutil
 
 from transformers import AutoConfig, PretrainedConfig, TrainerCallback, TrainerControl
 import datasets
@@ -21,6 +22,7 @@ from utils.dist_args_utils import *
 from utils.dist_checkpoint_utils import *
 from comm.comm_utils import *
 import compress.flag
+import subprocess
 
 class ProgressCallback(TrainerCallback):
     def __init__(self, log_file_path="/app/mnt/progress.log"):
@@ -279,7 +281,7 @@ def parse_arguments():
     parser.add_argument("--data_path", type=str, required=True, help="Path of the dataset")
     parser.add_argument("--model_path", type=str, required=True, help="Path of the pre-trained model.")
     parser.add_argument("--config_path", type=str, default="/app/mnt/config.json", help="Path to the config.json file.")
-    parser.add_argument("--output_dir", type=str, default="/app/mnt/model_output", help="Directory to save the fine-tuned model.")
+    parser.add_argument("--output_dir", type=str, default="/app/mnt/output_model", help="Directory to save the fine-tuned model.")
     input_args = parser.parse_args()
     try:
         args = load_default_config()
@@ -435,19 +437,37 @@ def pick_checkpoint(args):
     out_path = args.output_dir
     # get the last checkpoint
     last_ckp = args.checkpoint_path + "/latest"
+    last_ckp_path = None
     with open(last_ckp, "r") as f:
         last_ckp = f.readline().strip()
         last_ckp_path = args.checkpoint_path + f"/checkpoint_{last_ckp}"
-        if not os.path.exists(last_ckp_path):
-            raise FileNotFoundError(f"Checkpoint {last_ckp_path} not found.")
+
+    if not os.path.exists(last_ckp_path):
+        raise FileNotFoundError(f"Checkpoint {last_ckp_path} not found.")
 
     # copy the last checkpoint to the output directory
-    out_ckp = out_path + "/checkpoint"
-    os.system(f"cp -r {last_ckp_path} {out_ckp}")
+    out_ckp = out_path 
+    source_dir = last_ckp_path
+    destination_dir = out_ckp + "/checkpoint"
+    try:
+        shutil.copytree(source_dir, destination_dir)
+        print(f"Copied directory {source_dir} to {destination_dir}")
+    except FileNotFoundError:
+        print(f"Error: The directory {source_dir} does not exist.")
+        raise Error(f"Unexpected error: {e}")
+    except FileExistsError:
+        print(f"Error: The destination {destination_dir} already exists.")
+        raise Error(f"Unexpected error: {e}")
+    except PermissionError:
+        print(f"Error: Permission denied when accessing {source_dir} or {destination_dir}.")
+        raise Error(f"Unexpected error: {e}")
+    except Exception as e:
+        raise Error(f"Unexpected error: {e}")
 
 def main():
     try:
         args = parse_arguments()
+        print(args)
     except Exception as e:
         print("Error parsing arguments:", e)
         raise e

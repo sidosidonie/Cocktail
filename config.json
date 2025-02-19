@@ -1,5 +1,5 @@
 {
-    "output_dir" : "/app/mnt/model_output",
+    "output_dir" : "/app/mnt/output_model",
     "use_cuda": true,
     "cuda_id": 0,
     "cuda_num": 1,
